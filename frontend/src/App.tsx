@@ -1,100 +1,147 @@
-import React, { useEffect, useState } from 'react';
-import data from '../public/EXO_FULL.json';
+/* eslint-disable @typescript-eslint/no-extra-non-null-assertion */
+import React, { useState, useEffect } from 'react';
+import Tree from 'react-d3-tree';
+import data from './EXO_FULL.json';
+import { Grid } from '@mui/material';
 
-import './App.css';
+const App = () => {
+  type BackendNode = {
+    children: number[]
+    text: string
+    index: number
+  }
 
-function App() {
-  const [layerData, setLayerData] = useState([]);
-  const [expandedLayers, setExpandedLayers] = useState({});
+  interface RawNodeDatum {
+    name: string;
+    attributes?: Record<string, string | number | boolean>;
+    children?: RawNodeDatum[];
+  }
 
-  // Fetch and set all layer data on component mount
-  useEffect(() => {
-    const allLayers = [];
-    for (let i = 0; i <= 3; i++) {
-      if (data[`layer_${i}`]) {
-        const sortedItems = data[`layer_${i}`].sort((a, b) => a.index - b.index);
-        allLayers.push({
-          layerIndex: i,
-          items: sortedItems
-        });
-        // Initialize expanded state for each layer
-        setExpandedLayers(prevState => ({
-          ...prevState,
-          [i]: false  // Initially collapsed
-        }));
-      }
+  const mapLayersToArray = (): BackendNode[][] => {
+    const layers = Object.keys(data).length;
+    const layerAcc: BackendNode[][] = [];
+
+    for (let i = 0; i < layers; i++) {
+      layerAcc[i] = data['layer_' + i];
     }
-    setLayerData(allLayers);
+
+    return layerAcc;
+  }
+
+  const flatMapLayers = (): BackendNode[] => {
+    let acc: BackendNode[] = [];
+    const layers = Object.keys(data).length;
+
+    for (let i = 0; i < layers; i++) {
+      acc = [...acc, ...data['layer_' + i]]
+    }
+    return acc;
+  }
+
+  const flatLayers = flatMapLayers();
+
+  const getNode = (id: number): BackendNode | undefined => {
+    return flatLayers.find((a) => a.index === id);
+  }
+
+  const _mapdata = (arrData: BackendNode[], nodeIdx: number): RawNodeDatum => {
+    const curNode = getNode(nodeIdx)!!;
+    if (curNode.children.length === 0) {
+      const t: RawNodeDatum= {
+        attributes: { text: curNode.text },
+        name: `${curNode.index}`,
+        children: []
+      };
+      return t;
+    }
+
+    const children = curNode.children.map((childIdx) => _mapdata(arrData, childIdx));
+    
+    const t: RawNodeDatum = {
+      attributes: { text: curNode.text },
+      name: `${curNode.index}`,
+      children: children
+    };
+    return t;
+  }
+
+  const mapData = (): RawNodeDatum => {
+    console.log("running map data")
+    const arrData = mapLayersToArray();
+    arrData.forEach(layer => layer.sort((a, b) => b.index - a.index));
+
+    const mappedRootNodes = arrData[arrData.length - 1].map(node => _mapdata(arrData[arrData.length - 1], node.index));
+    const root: RawNodeDatum = {
+      name: `root`,
+      children: mappedRootNodes
+    };
+    return root;
+  }
+
+  const [treeData, setTreeData] = useState<RawNodeDatum>();
+  const [selectedNodeText, setSelectedNodeText] = useState<string>()
+
+  useEffect(() => {
+    const mappedData = mapData();
+    setTreeData(mappedData);
   }, []);
 
-  // Function to toggle collapse/expand for a layer
-  const toggleLayer = (layerIndex) => {
-    setExpandedLayers(prevState => ({
-      ...prevState,
-      [layerIndex]: !prevState[layerIndex]
-    }));
-  };
 
-  const handleItemClick = (layerIndex, itemIndex) => {
-    // Handle click on item if needed
-    // For now, it just toggles expand/collapse of the layer
-    toggleLayer(layerIndex);
-  };
+  useEffect(() => {
+    console.log("tree data updated")
+    console.log(treeData)
+  }, [treeData])
 
-  const getChildText = (childIndex) => {
-    // Loop through all layers to find the item with matching index
-    for (let i = 0; i < layerData.length; i++) {
-      const layer = layerData[i];
-      const item = layer.items.find(item => item.index === childIndex);
-      if (item) {
-        return item.text;
-      }
+
+  const handleNodeClick = (nodeDatum: RawNodeDatum, evt: React.MouseEvent) => {
+    console.log('Node clicked:', nodeDatum);
+    const text = nodeDatum?.attributes?.text
+    if(text) {
+      console.log("Setting text: " + text)
+      setSelectedNodeText(`${text}`)
     }
-    return ''; // Return empty string if no matching item found
   };
+
+  const renderCustomNode = ({ nodeDatum, toggleNode }: { nodeDatum: RawNodeDatum; toggleNode: () => void }) => (
+    <g>
+      <circle
+        r={15}
+        fill="lightblue"
+        onClick={(evt) => {
+          handleNodeClick(nodeDatum, evt);
+          toggleNode();
+        }}
+      />
+      <text fill="black" x="20" dy=".35em">
+        {nodeDatum.name}
+      </text>
+    </g>
+  );
 
   return (
-    <div>
-      <h2>Layer Text Dropdowns</h2>
-
-      {layerData.map((layer, layerIndex) => (
-        <div key={layerIndex} style={{ marginBottom: '20px' }}>
-          <h3>
-            <button
-              onClick={() => toggleLayer(layerIndex)}
-              style={{ textDecoration: 'underline', cursor: 'pointer', outline: 'none', border: 'none', background: 'none' }}
-            >
-              Layer {layerIndex} {expandedLayers[layerIndex] ? '▼' : '▶'}
-            </button>
-          </h3>
-          {expandedLayers[layerIndex] && (
-            <div>
-              {layer.items.map((item, itemIndex) => (
-                <div key={itemIndex}>
-                  <button onClick={() => handleItemClick(layerIndex, itemIndex)}>
-                    {item.text}
-                  </button>
-
-                  {
-                    <div style={{ marginLeft: '60px', marginRight:"60px" }}>
-                      {item.children.map((child, childIndex) => (
-                        <div style={{ marginTop: '60px'}}>
-                          {/* <button onClick={() => handleItemClick(layerIndex, childIndex)}> */}
-                            {getChildText(child)}
-                          {/* </button> */}
-                        </div>
-                      ))}
-                    </div>
-                  }
-                </div>
-              ))}
-            </div>
+    <div style={{ height: '100vh', width: '100vw' }}>
+      <Grid container style={{ height: '100%', width: '100%', background:"white" }}>
+        <Grid item xs={6} style={{ height: '100%' }}>
+          {treeData ? (
+            <Tree
+              data={treeData}
+              rootNodeClassName="node__root"
+              branchNodeClassName="node__branch"
+              leafNodeClassName="node__leaf"
+              initialDepth={1}
+              renderCustomNodeElement={renderCustomNode}
+            />
+          ) : (
+            <></>
           )}
-        </div>
-      ))}
-
+        </Grid>
+        <Grid item xs={6} style={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', paddingRight:"50px" }}>
+          {selectedNodeText ? <p style={{ color: "black" }}>{selectedNodeText}</p> : <></>}
+        </Grid>
+      </Grid>
     </div>
   );
-}
+};
+
 
 export default App;
