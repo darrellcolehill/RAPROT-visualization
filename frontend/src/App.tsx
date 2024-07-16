@@ -121,7 +121,7 @@ const App = () => {
   return (
     <div style={{ height: '100vh', width: '100vw' }}>
       <Grid container style={{ height: '100%', width: '100%', background:"white" }}>
-        <Grid item xs={6} style={{ height: '100%' }}>
+        <Grid item xs={8} style={{ height: '100%' }}>
           {treeData ? (
             <Tree
               data={treeData}
@@ -135,7 +135,7 @@ const App = () => {
             <></>
           )}
         </Grid>
-        <Grid item xs={6} style={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', paddingRight:"50px" }}>
+        <Grid item xs={4} style={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', paddingRight:"75px" }}>
           {selectedNodeText ? <p style={{ color: "black" }}>{selectedNodeText}</p> : <></>}
         </Grid>
       </Grid>
